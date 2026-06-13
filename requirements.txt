@@ -1,0 +1,35 @@
+# ── Core ML stack (install PyTorch for ROCm first, separately) ────────────────
+# PyTorch for AMD ROCm (MI300X) — install manually:
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.2
+#
+# Then install the rest:
+#   pip install -r requirements.txt
+
+# Dataset pipeline
+requests>=2.31.0
+pandas>=2.0.0
+openpyxl>=3.1.0          # read MEDDRA.xlsx
+rapidfuzz>=3.6.0          # fuzzy PT name matching
+tqdm>=4.65.0
+
+# Generation (Qwen3-32B via vLLM)
+openai>=1.12.0            # vLLM exposes OpenAI-compatible API
+httpx>=0.27.0
+
+# vLLM (for Qwen3-32B data generation) — install separately on the server:
+# pip install vllm
+
+# Fine-tuning
+transformers>=4.45.0
+peft>=0.12.0
+trl>=0.11.0
+accelerate>=0.34.0
+datasets>=2.20.0
+bitsandbytes>=0.43.0      # needed by some PEFT utilities even without QLoRA
+
+# Demo interface
+gradio>=4.40.0            # web UI for 05_demo.py
+
+# Jupyter
+jupyterlab>=4.0.0
+ipywidgets>=8.0.0         # for tqdm.notebook progress bars

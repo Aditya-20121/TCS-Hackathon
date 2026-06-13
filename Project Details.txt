@@ -1,0 +1,383 @@
+High-Fidelity MedDRA Bootstrapping and Parameter-Efficient Multi-Task Fine-Tuning of Qwen3-14B for an AI-Led Medical Review Assistant
+Clinical Context and Problem Definition
+In global pharmacovigilance operations, the processing of Individual Case Safety Reports (ICSRs) forms the basis for safety signal detection, regulatory compliance, and overall public health surveillance.[1, 2, 3] When spontaneous adverse event reports or clinical trial narratives are received, safety departments must process them through a rigorous clinical review workflow.[2, 3] This workflow involves evaluating case seriousness, assigning standardized Medical Dictionary for Regulatory Activities (MedDRA) codes, assessing labeling expectedness against reference safety information, and conducting structured causality assessments to determine the relationship between the suspect drug and the clinical event.[3, 4, 5, 6]
+Automating this complex, multi-stage narrative review by training a specialized large language model (LLM), such as Qwen3-14B, requires high-quality, task-specific instruction-tuning datasets.[7, 8, 9] The user's specific challenge involves a custom dataset of 2,000 clinical narratives that contain detailed safety observations but lack standard MedDRA codes.[2, 10] This missing clinical coding represents a major bottleneck.[2] Hand-labeling these narratives is slow, resource-intensive, and prone to inconsistency due to variations in medical training among human coders.[2, 11, 12] On the other hand, relying on zero-shot LLM predictions to generate codes directly from narratives often introduces clinical hallucinations, such as generating non-existent codes, assigning outdated terms, or over-coding minor symptoms.[12, 13, 14]
+To solve this problem, a systematic engineering strategy is required to build a programmatic, hybrid, and agentic bootstrapping pipeline.[15, 16] This pipeline uses multi-method candidate retrieval, commercial LLM rank fusion, and closed-loop agentic validation to generate high-confidence MedDRA codes for the 2,000 training instances.[15, 16] By compiling these bootstrapped codes into a multi-task instruction dataset, developers can use Parameter-Efficient Fine-Tuning (PEFT) to train Qwen3-14B into an audit-ready Medical Review Assistant.[8, 17, 18]
+Comprehensive Clinical Entity Extraction
+Before mapping patient narratives to MedDRA codes, the system must first locate and extract the exact clinical terms within the unstructured text.[15, 19] This initial clinical entity extraction separates the actual adverse event descriptions from surrounding patient history and clinical noise.[11, 15] Selecting an appropriate Named Entity Recognition and Linking (NER+L) tool is critical to ensure high recall and precision during this stage.[19, 20]
+Clinical NLP Tool
+Extraction Mechanism
+Strengths
+Limitations
+MetaMap / MetaMap Lite [19, 21]
+Natural Language Processing (NLP), computational linguistics, and direct mapping to the Unified Medical Language System (UMLS).[22, 23]
+Broad coverage of medical terminology; highly configurable; well-established regulatory history.[19, 21]
+Prone to errors with ambiguous concepts; sensitive to spelling mistakes; slow processing speeds.[20]
+cTAKES [19, 22]
+Cascaded sequence of rule-based modules combined with machine learning classifiers.[19, 22]
+Excellent temporal analysis; strong clinical assertion handling (identifying negated or historical events).[22]
+High system complexity; complex setup; requires extensive clinical tuning for specific domains.[19, 22]
+MedCAT [20]
+Unsupervised machine learning using context-aware word and concept embeddings.[20]
+Learns directly from unstructured notes; natively handles spelling variations; resolves contextual ambiguity.[20]
+Requires a moderate clinical text corpus to learn embeddings; can be less precise on very rare conditions.[20]
+Amazon Comprehend Medical [19, 23]
+Cloud-based deep learning models pre-trained on large-scale clinical notes.[19]
+Outperforms MetaMap (10% higher recall, 4% higher precision); extracts dosages and relationships natively.[23]
+External API dependency; data privacy and HIPAA compliance overhead; recurring transaction costs.[23, 24]
+For this bootstrapping pipeline, an unsupervised NER+L framework such as MedCAT represents an effective balance.[20] MedCAT uses contextual word representations to identify candidate medical terms even when they contain spelling mistakes or vary in phrasing, such as matching "kidney failure" and "failure of kidneys" to the same clinical concept.[20] When a candidate entity matches a concept in the UMLS Metathesaurus, it is assigned a Concept Unique Identifier (CUI).[20, 22] If cloud-based execution is permissible under institutional data privacy rules, deploying Amazon Comprehend Medical provides a pre-trained alternative that improves both extraction recall and precision.[19, 23] Once extracted, these verbatim terms are routed to the MedDRA mapping pipeline.[15]
+Programmatic Bootstrapping Pipeline for MedDRA Label Generation
+The core challenge of generating reliable MedDRA codes without manual annotation is addressed using a three-phase programmatic bootstrapping architecture.[15] This design combines rule-based lookup, semantic vector databases, zero-shot rank fusion, and agentic clinical validation.[15, 16]
+[Unstructured Clinical Narrative]
+              │
+              ▼
+┌────────────────────────────────────────┐
+│  Adverse Drug Event (ADE) Extraction   │  (Using MedCAT / UMLS Named Entity Recognition)
+└─────────────┬──────────────────────────┘
+              │ (Extracted Verbatim Mentions)
+              ▼
+┌────────────────────────────────────────┐
+│  Phase 1: Candidate Generation         │  (Parallel execution of Methods A through F)
+│  - Stemmed Overlap & Acronym Detection │  - Embedding & Description Cosine Similarity
+└─────────────┬──────────────────────────┘
+              │ (Top 30 Merged Candidate MedDRA Phrases)
+              ▼
+┌────────────────────────────────────────┐
+│  Phase 2: First-Stage Rank Fusion      │  (Consensus ordering via ChatGPT & Gemini)
+└─────────────┬──────────────────────────┘
+              │ (Top 15 Re-ranked Phrases)
+              ▼
+┌────────────────────────────────────────┐
+│  Phase 3: Final Rank Fusion            │  (Final validation using ChatGPT, Gemini, & Grok)
+└─────────────┬──────────────────────────┘
+              │ (Top 10 Highly Confident Candidates)
+              ▼
+┌────────────────────────────────────────┐
+│  Phase 4: Agentic Code Verification    │  (The MedDCR Framework: Designer-Coder-Reflector)
+└─────────────┬──────────────────────────┘  - Enforces MTS:PTC primary SOC rules
+              │                             - Verifies active 8-digit MedDRA codes
+              ▼
+   
+Phase 1: Parallel Candidate Generation
+To ensure the true clinical term is captured, the extracted verbatim phrase is processed through six parallel retrieval methods to generate candidate MedDRA terms from the dictionary database [15]:
+Method A (Fine-Tuned Prediction & Levenshtein Matching): A pre-trained medical language model (such as MedGemma) is prompted to predict a candidate MedDRA term based on the narrative and extracted adverse event.[15] Because this raw text output may not exactly match a standard dictionary entry, the system calculates the Levenshtein distance between the model's prediction and all entries in the MedDRA database.[15] The closest dictionary match receives a similarity score of 1.0.[15]
+Method B (Direct Edit Distance): Measures the direct lexical similarity between the raw adverse event phrase (P 
+1
+​
+ ) and every standard MedDRA phrase (P 
+2
+​
+ ) using a normalized Levenshtein distance formula [15]:
+L_Sim(P 
+1
+​
+ ,P 
+2
+​
+ )= 
+1+Levenshtein_distance(P 
+1
+​
+ ,P 
+2
+​
+ )
+1
+​
+ 
+All dictionary terms are sorted by this metric, and the top 30 candidates are selected.[15]
+Method C (Stemmed Token Overlap): This rule-based method normalizes clinical tokens over five sequential steps [15]:
+Basic Normalization: Converts both the adverse event and MedDRA terms to lowercase, removes punctuation, and checks for exact matches (assigning a similarity score of 1.0).[15]
+Clinical Standard Filtering: Removes non-specific clinical descriptors such as "NOS" (Not Otherwise Specified) and "NEC" (Not Elsewhere Classified) and re-evaluates for exact matches (assigning a score of 1.0).[15]
+Stemming & Overlap calculation: Non-exact matches are tokenized and stemmed to generate token sets SP 
+1
+​
+  and SP 
+2
+​
+ .[15] Lexical overlap is calculated using the intersection over union metric [15]:
+Overlap(T,S)= 
+∣T∪S∣
+∣T∩S∣
+​
+ 
+The top 30 terms from this step are selected and scaled by a factor of 0.95.[15]
+Stopword Filtering: Standard stopwords are removed, the overlap score is recalculated, and the top 30 terms are selected and scaled by 0.90.[15]
+List Merge: The resulting candidate lists are merged, keeping the highest similarity score for any duplicate terms.[15]
+Method D (Clinical Acronym Detection): Identifies uppercase sequences of two to six characters in the source narrative (e.g., "TIA").[15] It compares these acronyms to candidate MedDRA terms whose initials form the same sequence (e.g., matching "TIA" to "Transient ischaemic attack").[15] If a match is found, the system calculates an overlap score based on token-level similarity.[15]
+Method E (Contextual Description Similarity): An LLM is prompted to generate a short clinical description of the extracted adverse event.[15] To optimize api costs over the 74,359-term MedDRA database, candidate phrases are batched 50 at a time to generate corresponding clinical descriptions.[15] Dense vector embeddings of these descriptions are generated using a sentence-transformer model.[15, 25] The cosine similarity between the narrative description vector (A) and the candidate term description vector (B) is calculated [15]:
+Cosine Similarity(A,B)= 
+∥A∥∥B∥
+A⋅B
+​
+ 
+The top 30 candidates are selected and scaled by 0.90.[15]
+Method F (Direct Phrase Embedding Similarity): Generates sentence embeddings directly from the raw adverse event mention and the candidate MedDRA phrases using a pre-trained clinical encoder.[15] The system calculates the cosine similarity between these embeddings, selecting the top 30 candidates and scaling their scores by 0.90.[15]
+Once these six methods are complete, their outputs are combined using equal weights.[15] If a candidate term appears in multiple lists, the system retains only the instance with the highest similarity score.[15] The merged list is sorted in descending order, and the top 30 unique candidate terms are passed to the next phase.[15]
+Phase 2: First-Stage Rank Fusion with Commercial LLMs
+To refine the 30 candidates, the system uses zero-shot ranking from commercial LLMs to resolve lexical and semantic differences [15]:
+The top 30 candidate terms from Phase 1 are stripped of their numerical similarity scores but retain their relative sorted order.[15]
+This candidate list, along with the original clinical narrative and the extracted adverse event, is included in a prompt sent to ChatGPT and Gemini.[15] These models are instructed to re-rank the candidates based on clinical relevance.[15]
+The system combines the three rankings (the original Phase 1 sorted list, ChatGPT's ranking, and Gemini's ranking) using a position-based rank-fusion algorithm.[15] The algorithm assigns an average rank to each candidate [15]:
+Mean_Rank(C)= 
+3
+Rank 
+Phase1
+​
+ (C)+Rank 
+ChatGPT
+​
+ (C)+Rank 
+Gemini
+​
+ (C)
+​
+ 
+If a candidate term is missing from any of the model-generated lists, it is assigned a default rank penalty of 30.[15] The candidates are sorted in ascending order of their mean rank, and the top 15 terms are passed to the next phase.[15]
+Phase 3: Final Consensus Rank Fusion
+The third phase applies a final consensus re-ranking step to select the most accurate codes [15]:
+The prompt is updated to include only the top 15 candidate terms from Phase 2.[15]
+These candidates are sent to three commercial LLMs: ChatGPT, Gemini, and Grok.[15] The models are instructed to return the top 10 most clinically accurate MedDRA terms in decreasing order of relevance.[15]
+The system runs the rank-fusion algorithm again, considering only the sorted lists returned by these three models.[15] The final, consensus-ranked top 10 list forms the output of the rank-fusion pipeline.[15]
+Phase 4: Closed-Loop Agentic Verification (The MedDCR Framework)
+To ensure the bootstrapped codes comply with regulatory standards, the top 10 candidates are processed through a closed-loop multi-agent verification system modeled on the MedDCR architecture.[16] This framework consists of three specialized agents:
+The Designer Agent: Formulates a clinical evaluation plan using successful coding strategies retrieved from a historical memory archive.[16] The plan specifies the validation rules and thresholds required for the case.[16]
+The Coder Agent: Compiles the Designer's plan into an executable programmatic script.[16] The Coder programmatically queries the active MedDRA files to verify that the selected terms are currently active, discarding any non-current or retired codes.[2, 16, 26] It also includes a self-fixing loop: if the generated code throws an exception during execution, the Coder parses the traceback error and automatically regenerates a corrected version of the script.[16]
+The Reflector Agent: Acts as a clinical safety auditor, evaluating the Coder's proposed terms against the official, ICH-endorsed MedDRA Term Selection: Points to Consider (MTS:PTC) guidelines.[10, 11, 16]
+The Reflector Agent applies several clinical rules to ensure data quality:
+Diagnosis vs. Symptoms Rule: If the narrative describes a definitive clinical diagnosis accompanied by its characteristic signs and symptoms (e.g., "acute myocardial infarction" presenting with "chest pain, diaphoresis, and dyspnea"), the Reflector selects only the single term for the diagnosis ("Myocardial infarction") and discards the individual symptom terms to prevent over-coding.[2, 11, 27]
+Multi-Axial Priority Mapping: Because a single Preferred Term (PT) can map to multiple System Organ Classes (SOCs), the Reflector enforces primary SOC priority rules to ensure standard reporting structure.[12, 26] For example, if a term links to more than one exception, it resolves the primary SOC using the mandated hierarchical priority order: 1st: Congenital, familial and genetic disorders; 2nd: Neoplasms benign, malignant and unspecified; 3rd: Infections and infestations.[12, 26]
+Exclusion of Non-Events: The Reflector identifies and filters out candidate terms associated with family history, negative findings, or ruled-out/hypothetical events.[16, 22]
+If a case fails these validation rules, the Reflector returns clinical feedback to the Designer and Coder, triggering a re-evaluation.[16] Once the agents reach consensus, the selected 8-digit numeric MedDRA code is committed as the gold-standard label for that training instance.[2, 16, 26]
+Custom Dataset Synthesis and Multi-Task Instruction Engineering
+Once the programmatic bootstrapping pipeline has generated reliable MedDRA codes for the 2,000 narratives, the data is structured into a multi-task instruction-tuning dataset.[8, 9] The dataset uses a standard format with three fields: instruction (the system prompt), input (the unstructured clinical safety narrative), and output (a structured JSON payload).[8]
+To train the Qwen3-14B model to act as a comprehensive Medical Review Assistant, the structured JSON schema integrates four clinical review tasks into a single output [3, 8]:
+Seriousness Assessment: Evaluating whether the event meets regulatory seriousness criteria under the ICH E2D guidelines (e.g., resulting in death, life-threatening, requiring hospitalization, causing disability, or representing a medically significant event).[3]
+MedDRA Coding: Extracting and mapping the clinical events to their corresponding Lowest Level Term (LLT), Preferred Term (PT), primary System Organ Class (SOC), and 8-digit numeric codes.[2, 26, 28]
+Labelling Status Evaluation: Cross-referencing the drug's package insert (retrieved via the DailyMed API using the drug's National Drug Code (NDC) or SETID) to determine if the event is "Expected" or "Unexpected".[5, 29, 30]
+Causality Assessment Support: Calculating causality ratings using both the objective Naranjo Adverse Drug Reaction Probability Scale and the WHO-Uppsala Monitoring Centre (WHO-UMC) system.[4, 31, 32]
+{
+  "instruction": "Analyze the following unstructured clinical safety narrative to perform a comprehensive medical review. Identify event seriousness and specify its criteria. Map the primary adverse event to its precise MedDRA terms (LLT, PT, SOC, and 8-digit numeric code). Cross-reference the suspect drug against Structured Product Labeling (SPL) guidelines to determine expectedness. Finally, evaluate the causal relationship between the suspect drug and the adverse event using both the Naranjo scale and WHO-UMC causality criteria. Return your evaluation strictly as a validated JSON object.",
+  "input": "A 54-year-old male was admitted to the hospital with acute jaundice and severe right upper quadrant abdominal pain after initiating Drug X 500mg daily three weeks ago. Laboratory work confirmed significantly elevated alanine aminotransferase (ALT) at 450 U/L and total bilirubin at 4.2 mg/dL. Drug X was immediately discontinued, which led to a gradual resolution of the jaundice and a return of liver enzymes to baseline over the subsequent two weeks. The patient has no history of liver disease or alcohol use, and concomitant viral hepatitis serologies were negative.",
+  "output": {
+    "seriousness": "Serious",
+    "seriousness_criteria":,
+    "meddra_llt": "Jaundice",
+    "meddra_llt_code": 10023126,
+    "meddra_pt": "Jaundice",
+    "meddra_soc": "Hepatobiliary disorders",
+    "labelling_status": "Unexpected",
+    "labelling_evidence": "Review of the Drug X prescribing information section 6 (Adverse Reactions) and section 5 (Warnings and Precautions) shows no documentation of jaundice, hepatic enzyme elevation, or drug-induced liver injury.",
+    "naranjo_score": 6,
+    "naranjo_category": "Probable",
+    "who_umc_category": "Probable/Likely"
+  }
+}
+This multi-task training payload teaches the model to perform clinical synthesis, ensuring that its final evaluations are grounded in medical evidence and structured for downstream databases.[3, 24, 33]
+Parameter-Efficient Fine-Tuning on Qwen3-14B
+Model Architecture and Hardware Considerations
+Qwen3-14B is a dense, causal decoder-only transformer with 14.8 billion parameters.[7] The model's architecture consists of 40 layers, utilizing Grouped Query Attention (GQA) with 40 query heads and 8 key/value heads to improve inference throughput.[7] It incorporates standard features such as SwiGLU activations, RMSNorm for pre-normalization, and Rotary Positional Embeddings (RoPE).[7]
+A model of this scale presents significant memory challenges during training.[34] While standard inference can run on consumer hardware, full-parameter fine-tuning requires tracking model weights, gradients, and optimizer states (such as the two momentum terms per parameter in AdamW), multiplying the memory requirement by 12× to 16×.[34] This raises the minimum VRAM requirement for full fine-tuning to over 160 GB.[34] To train Qwen3-14B on accessible hardware, developers must choose between standard Low-Rank Adaptation (LoRA) and 4-bit Quantized LoRA (QLoRA).[34, 35, 36]
+Specification Metric
+LoRA Fine-Tuning (FP16/BF16) [36]
+QLoRA Fine-Tuning (Int4 NormalFloat) [34, 35]
+Quantization Format
+Standard 16-bit precision (no quantization of base weights).[35]
+4-bit NormalFloat (NF4) base weights + 16-bit LoRA adapters.[34, 35]
+Peak VRAM Requirement
+~35 GB for Qwen-14B with a sequence length of 1024.[36]
+~16 GB for Qwen-14B with a sequence length of 1024.[7, 35]
+Recommended Hardware
+A100 (40GB/80GB) or RTX A6000 (48GB).[36]
+RTX 3090/4090 (24GB) or RTX A5000 (24GB).[35]
+Relative Training Speed
+Baseline (approx. 66% faster than QLoRA).[37]
+2x to 3x slower due to ongoing de-quantization steps during backward passes.[35, 37]
+Weight Merging
+Fully supported; adapter weights can merge directly into the base weights.[35, 36]
+Unsupported; adapters cannot merge with the 4-bit quantized base weights.[35, 36]
+Precision Restrictions
+Supports both BF16 and FP16 operations.[36, 38]
+Must use FP16 (AutoGPTQ quantization is optimized for FP16 operations).[35]
+Embedding Layer Training
+Fully supported; allows training of embedding and output layers.[36]
+Unsupported with Int4 models; cannot train embedding or output layers.[35]
+Under QLoRA, the base model is loaded in 4-bit precision (NF4), while the trainable LoRA adapters run in 16-bit precision.[35] Paged optimizers are enabled to prevent out-of-memory errors by offloading gradient memory spikes to the CPU.[34, 35] While QLoRA reduces the memory footprint, it introduces several limitations: it does not support weight merging (requiring adapters to be loaded separately at inference), cannot train embedding layers (preventing the model from learning new custom tokens), and must use FP16 precision.[35, 36]
+For organizations with access to professional hardware (such as an A100 80GB), standard LoRA in FP16/BF16 is the preferred option because it supports weight merging, enables training of embedding layers (wte and lm_head) to learn ChatML special tokens, and provides faster training speeds.[36]
+Training Configuration and Hyperparameter Tuning
+Optimizing LoRA fine-tuning requires balancing both standard and adapter-specific hyperparameters [18, 39]:
+Rank (r) and Alpha (α) Selection: The rank controls the dimensionality of the low-rank adapter matrices (A and B), while the alpha parameter acts as a scaling factor for the weight updates.[18, 36, 39] The weight update added to the pre-trained residual stream is scaled by the ratio:
+Scaling Factor= 
+r
+α
+​
+ 
+Rank and alpha should be chosen together.[18] Setting r=64 and α=64 creates a conservative scaling factor of 1.0, preserving the pre-trained weights.[18, 36] If faster learning is needed, setting r=64 and α=128 doubles the scaling factor, which accelerates convergence but increases the risk of the model forgetting its pre-trained clinical knowledge.[18]
+Target Modules: To ensure the model learns both the multi-task JSON structure and the clinical logic, LoRA adapters must be applied to all linear modules within the self-attention and MLP blocks.[18, 39] This includes targeting q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, and down_proj.[18, 39]
+Learning Rate: LoRA allows for higher learning rates than full fine-tuning.[36] A conservative starting learning rate of 1×10 
+−4
+  is recommended for base models, while 2×10 
+−4
+  to 3×10 
+−4
+  is standard for chat models.[18, 36] Learning rates above 5×10 
+−4
+  are aggressive and may cause training instability.[36]
+Batch Size and Gradient Accumulation: LoRA fine-tuning converges more reliably with small batch sizes (≤4).[39] To maintain a stable effective batch size (e.g., 64) without memory issues, developers should increase gradient accumulation steps [18, 35]:
+Effective Batch Size=Batch Size per Device×Gradient Accumulation Steps×Number of GPUs
+Response-Only Loss Masking: During instruction tuning, calculating loss on the input narrative wastes gradient updates.[8, 38] Using Unsloth's train_on_responses_only function masks the instruction and input tokens, focusing the cross-entropy loss calculation strictly on the assistant's structured JSON response.[8, 38] This focuses 100% of the weight updates on formatting, clinical coding, and medical review accuracy.[8, 38]
+Comprehensive Evaluation Framework and Clinical Safety Metrics
+To verify that the fine-tuned Qwen3-14B model is accurate, safe, and compliant with regulatory standards, its predictions must be compared against a human-curated validation set.[2, 3, 33] This evaluation framework uses a multi-faceted approach to assess performance across all four medical review tasks [33]:
+Medical Review Task
+Evaluation Metric
+Statistical Formulation & Criteria
+Clinical Target Threshold
+MedDRA Coding [15, 16]
+Accuracy@1 and macro F1-score.[15, 16]
+F 
+1
+​
+ =2× 
+Precision+Recall
+Precision×Recall
+​
+ 
+[16]
+≥0.85 F1-score across common medical conditions.[15]
+Seriousness Triage [3]
+Precision, Recall, and F1-score.[16]
+Focuses on minimizing false negatives to ensure patient safety.
+≥0.98 Recall on serious adverse events (SAEs).[3]
+Labeling expectedness [30]
+Binary Classification Accuracy and Area Under ROC (AUROC).
+Measures correct classification of events against DailyMed SPL records.[5, 30]
+≥0.92 AUROC on labeled and unlabeled events.[33]
+Causality Assessment [4, 32]
+Weighted Kappa (κ) on Naranjo and WHO-UMC scores.[40]
+κ= 
+1−p 
+e
+​
+ 
+p 
+o
+​
+ −p 
+e
+​
+ 
+​
+ 
+[40]
+≥0.80 Weighted Kappa (indicating strong clinical agreement).[40]
+For the Weighted Kappa metric (κ), p 
+o
+​
+  represents the observed proportion of agreement between the model's causality classifications and the human safety physicians' ratings, while p 
+e
+​
+  represents the expected agreement by chance.[40] A kappa score above 0.80 ensures that the model's causality evaluations are aligned with human expert consensus and suitable for aggregate safety reports such as Development Safety Update Reports (DSURs) or Periodic Safety Update Reports (PSURs).[33, 40]
+Additionally, the system must undergo continuous safety auditing to monitor for clinical hallucinations.[24] A random sample of cases must be reviewed periodically by a medical board to ensure that the model’s outputs remain clinically sound and compliant with global pharmacovigilance standards.[2, 24]
+Learnings, Operational Pitfalls, and Future Directions
+Developing this programmatic bootstrapping and fine-tuning pipeline yields several technical and operational lessons:
+Core Learnings and System Dynamics
+Task Interdependence: Medical review tasks are highly interconnected.[33] For example, assigning an incorrect MedDRA code directly compromises the downstream labeling evaluation, which can lead to safety signals being missed.[1, 33]
+The Value of Multi-Agent Verification: Using a multi-agent validation loop (such as the MedDCR Designer-Coder-Reflector framework) reduces code hallucinations by over 10% compared to standard zero-shot LLM predictions.[13, 16] The system's ability to self-correct by parsing traceback errors is critical for data quality.[16]
+Adapter Efficiency: Fine-tuning Qwen3-14B using LoRA with target modules applied to all linear layers provides a balanced combination of rapid learning convergence, low memory usage, and preserved pre-trained medical knowledge.[18, 36, 39]
+Critical Failure Modes and Mitigations
+Dictionary Version Drifts: MedDRA undergoes bi-annual updates (released every March and September).[2] If the training dataset is mapped to an older dictionary version, the fine-tuned model will generate outdated terms, which can lead to regulatory submission failures.[2, 12] Mitigation: Implement structured version-control and programmatically update the memory archives and vector database embeddings with every new MedDRA release, followed by targeted adapter updates.[2]
+Multi-Axial Code Ambiguity: A Preferred Term (PT) can map to multiple System Organ Classes (SOCs), which can lead to classification errors when generating structured JSON payloads.[12, 26] Mitigation: The Reflector agent must strictly enforce primary SOC priority rules (e.g., Congenital, Neoplasms, and Infections exceptions) to ensure consistent, compliant mappings.[12, 26]
+Low-Frequency Code Hallucinations: LLMs frequently struggle with rare adverse events that appear infrequently in the training data, leading to a drop in precision.[13, 14] Mitigation: Utilize data augmentation techniques and incorporate few-shot in-context learning examples of rare events within the Designer Agent’s memory archive.[13, 16]
+Future Strategic Directions
+Continuous Multi-Agent Workflows: Future architectures should allow the multi-agent system to update its own workflows dynamically based on changing regulatory guidelines, rather than relying on a static instruction set.[16]
+Global Multi-Lingual Expansion: MedDRA is inherently multi-lingual, and global pharmacovigilance requires processing safety reports in multiple languages.[7, 12, 28] Future datasets should incorporate multi-lingual clinical narratives, taking advantage of Qwen3’s extensive pre-training across 119 languages.[7, 28]
+Integration of WHODrug Coding: To build a more comprehensive pharmacovigilance assistant, future datasets should include drug name mapping to WHODrug codes alongside MedDRA adverse event coding.[28] This would allow the system to analyze concomitant medications and support more robust causality assessments.[28]
+Interactive Demonstration and Deployment Roadmap
+To demonstrate the system effectively to evaluators and stakeholders, the live demonstration must follow a structured, step-by-step workflow [3, 33]:
+User Interface Design and Mockup
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│  AI-LED MEDICAL REVIEW ASSISTANT -- LIVE EVALUATION DASHBOARD                         │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                           │
+│ "A 62-year-old female patient developed severe bronchospasm and urticaria within       │
+│  two hours of receiving the first dose of Drug Y. She was treated with epinephrine."   │
+│                                                                                        │
+│                                                     │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│                                            │
+│                                                                                        │
+│  Candidate Term             Source Engine      Lexical Score     Semantic Similarity   │
+│  ────────────────────────────────────────────────────────────────────────────────────  │
+│  1. Bronchospasm            Method C (Overlap)     1.00                  0.94          │
+│  2. Anaphylactic reaction   Method E (LLM Desc)    0.32                  0.88          │
+│  3. Asthma attack           Method B (Edit Dist)   0.45                  0.79          │
+│                                                                                        │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│                                               │
+│                                                                                        │
+│  Proposing workflow: Verify "Bronchospasm" and "Urticaria" as active LLTs.  │
+│  [Coder]    Querying active MedDRA database... Verified LLT 10006482 & 10046735.       │
+│  Applying MTS:PTC Diagnosis Rule: "Bronchospasm" + "Urticaria" within 2h    │
+│              matches "Anaphylactic reaction" (PT 10002198). Recommending PT.           │
+│                                                                                        │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│                         │
+│                                                                                        │
+│  {                                                                                     │
+│    "seriousness": "Serious",                                                           │
+│    "seriousness_criteria":,                                  │
+│    "meddra_llt": "Anaphylactic reaction",                                              │
+│    "meddra_llt_code": 10002198,                                                        │
+│    "meddra_pt": "Anaphylactic reaction",                                               │
+│    "meddra_soc": "Immune system disorders",                                            │
+│    "labelling_status": "Expected",                                                     │
+│    "naranjo_score": 7,                                                                 │
+│    "naranjo_category": "Probable"                                                      │
+│  }                                                                                     │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+The presentation must walk through this pipeline step-by-step:
+Narrative Entry: The user enters an unstructured clinical safety narrative.[3, 33]
+Visualizing Phase 1 (Candidate Generation): Show the parallel execution of the lexical and semantic retrieval paths, displaying the top candidate terms, source methods, and similarity scores.[15]
+Visualizing the Agentic Loop: Show the real-time interaction logs of the Designer, Coder, and Reflector agents.[16] This highlights how the system applies the MTS:PTC guidelines (e.g., combining symptoms into a diagnosis or resolving multi-axial assignments).[2, 10, 26]
+Final Model Evaluation: Show the final, fine-tuned Qwen3-14B model generating the structured JSON output, displaying the mapped MedDRA terms, seriousness classification, labeling status, and causality scores.[3, 4, 8, 30]
+By demonstrating this closed-loop process, the presentation highlights how the system combines automated retrieval with programmatic clinical validation.[15, 16] This architecture provides an audit-ready methodology for generating reliable training data and fine-tuning an AI-led assistant that meets the strict compliance standards of global drug safety.[2, 3, 33]
+The role of MedDRA coding in pharmacovigilance: Tips and tools - MediPharm Solutions, https://medipharmsolutions.com/blog/the-role-of-meddra-coding-in-pharmacovigilance-tips-and-tools/
+MedDRA Coding in Clinical Trials: Best Practices for Audit Readiness, https://prorelixresearch.com/meddra-coding-in-clinical-trials-best-practices-for-audit-readiness/
+Pharmacovigilance Case Processing: Definitive Expert Guide - CCRPS, https://ccrps.org/clinical-research-blog/pharmacovigilance-case-processing-definitive-expert-guide
+Naranjo Scale Causality Assessment Guide | PDF - Scribd, https://www.scribd.com/document/938418679/Causality-Assessment-Sheet-With-Naranjo-Scale
+What is DailyMed? | Freyr solutions, https://www.freyrsolutions.com/what-is-dailymed
+Understanding Causality Assessment in Pharmacovigilance - Soterius, https://soterius.com/blogs/causality-assessment-in-pharmacovigilance/
+Qwen3-14B: Specifications and GPU VRAM Requirements - ApX Machine Learning, https://apxml.com/models/qwen3-14b
+How to Create Instruction Tuning - OneUptime, https://oneuptime.com/blog/post/2026-01-30-llmops-instruction-tuning/view
+How to Design, Create, and Evaluate an Instruction-Tuning Dataset for Large Language Model Training in Health Care: Tutorial From a Clinical Perspective - Journal of Medical Internet Research, https://www.jmir.org/2025/1/e70481
+MedDRA® TERM SELECTION: POINTS TO CONSIDER, https://alt.meddra.org/files_acrobat/001329_termselptc_r4_26_mar2026.pdf
+Applying MedDRA® in Clinical Safety and Pharmacovigilance, https://admin.meddra.org/sites/default/files/page/documents_insert/dia_china_meddra_workshop_zhao-wong_20130412.pdf
+MedDRA Coding Basics, https://files.meddra.org/training/MSSOEvent/CourseTrainingMaterial/Webinars/001347_MedDRA_Coding_Basics_Webinar.pdf
+Surpassing GPT-4 Medical Coding with a Two-Stage Approach - arXiv, https://arxiv.org/html/2311.13735v1
+Large Language Models for Automating Clinical Trial Criteria Conversion to Observational Medical Outcomes Partnership Common Data Model Queries: Validation and Evaluation Study, https://medinform.jmir.org/2025/1/e71252
+A Hybrid System for Comprehensive and ... - ACL Anthology, https://aclanthology.org/2025.alta-main.16.pdf
+MedDCR: Learning to Design Agentic Workflows for Medical ... - arXiv, https://arxiv.org/pdf/2511.13361
+Alibaba Cloud Model Studio:Fine-tune Qwen, https://www.alibabacloud.com/help/en/model-studio/text-generation-model-tuning
+The LoRA Hyperparameters No One Explains | How to Fine-Tune Correctly, Part 4, https://pub.towardsai.net/the-lora-hyperparameters-no-one-explains-how-to-fine-tune-correctly-part-4-a58268050766
+Clinical Entity Extraction: Comparison between MetaMap, cTAKES, CLAMP and Amazon Comprehend Medical - Ulster University, https://pure.ulster.ac.uk/files/91448348/issc_paper1_acceptance.pdf
+MedCAT ​- MEDICAL CONCEPT ANNOTATION TOOL - arXiv, https://arxiv.org/pdf/1912.10166
+Clinical Concept Extraction with Lexical Semantics to Support Automatic Annotation - PMC, https://pmc.ncbi.nlm.nih.gov/articles/PMC8535468/
+Comparison of MetaMap and cTAKES for entity extraction in clinical notes - PMC, https://pmc.ncbi.nlm.nih.gov/articles/PMC6157281/
+Entity Extraction for Clinical Notes, a Comparison Between MetaMap and Amazon Comprehend Medical - Icahn School of Medicine at Mount Sinai, https://icahn.mssm.edu/files/ISMMS/Assets/Departments/Population%20Health%20Science/MIE-2021-Entity-Extraction-for-ClinicalNotes.pdf
+Large Language Models for Clinical Narrative Processing: Methods, Applications, and Challenges - PMC, https://pmc.ncbi.nlm.nih.gov/articles/PMC13214763/
+Vector Databases: Building a Semantic Search Engine — A Practical Guide - Medium, https://medium.com/@amdj3dax/building-a-semantic-search-engine-with-vector-databases-a-practical-guide-4829fc934e53
+Applying MedDRA® in Clinical Safety and Pharmacovigilance, https://admin.meddra.org/sites/default/files/page/documents_insert/applying_meddra_in_clinical_safety_and_pv_judy_harrison_2011.pdf
+Introduction to MedDRA Coding in Pharmacovigilance, https://admin.meddra.org/sites/default/files/page/documents_insert/MedDRA%20Coding%20in%20Pharmacovigilance.pdf
+MedDRA & WHODrug: A Guide to Coding in Clinical Trials | IntuitionLabs, https://intuitionlabs.ai/articles/meddra-whodrug-coding-clinical-trials
+DailyMed - Health Data Standards and Terminologies: A Tutorial - NIH, https://www.nlm.nih.gov/oet/ed/healthdatastandards/02-630.html
+About DailyMed - NIH, https://dailymed.nlm.nih.gov/dailymed/about-dailymed.cfm
+Agreement between WHO-UMC causality scale and the Naranjo algorithm for causality assessment of adverse drug reactions - PMC, https://pmc.ncbi.nlm.nih.gov/articles/PMC8565125/
+Causality Assessment in Pharmacovigilance - Soterius, https://soterius.com/wp-content/uploads/2025/04/9-Causality-Assessment-Mridula-Pant.pdf
+Mastering Causality Assessment and MedDRA Coding in Pharmacovigilance Simulation Training | by sreenidhi | Medium, https://medium.com/@sreenidhisv2005/mastering-causality-assessment-and-meddra-coding-in-pharmacovigilance-simulation-training-db8b4bd612ff
+Fine-Tuning LLMs for Production: A Practical Guide to QLoRA, Evaluation and Deployment, https://medium.com/@shubhodaya.hampiholi/fine-tuning-llms-for-production-a-practical-guide-to-qlora-evaluation-and-deployment-e161a68584c8
+Q-LoRA Fine-tuning - Qwen, https://qwenlm-qwen.mintlify.app/finetuning/qlora
+LoRA Fine-tuning - Qwen, https://qwenlm-qwen.mintlify.app/finetuning/lora
+LoRA and QLoRA recommendations for LLMs | Gemini Enterprise Agent Platform, https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/model-garden/lora-qlora
+Fine-Tuning Qwen-2.5-Coder-14B LLM (SFT, PEFT) - Kaggle, https://www.kaggle.com/code/ksmooi/fine-tuning-qwen-2-5-coder-14b-llm-sft-peft
+PLoRA: Efficient LoRA Hyperparameter Tuning for Large Models - arXiv, https://arxiv.org/html/2508.02932v1
+A study of agreement between the Naranjo algorithm and WHO-UMC criteria for causality assessment of adverse drug reactions - PMC, https://pmc.ncbi.nlm.nih.gov/articles/PMC3912795/
