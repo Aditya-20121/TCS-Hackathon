@@ -27,7 +27,43 @@ from transformers import (
     AutoTokenizer,
     TrainingArguments,
 )
-from trl import DataCollatorForCompletionOnlyLM, SFTTrainer
+import trl
+from transformers import Trainer  # used instead of SFTTrainer to avoid TRL API instability
+
+# DataCollatorForCompletionOnlyLM was removed from TRL ~0.14+.
+# Implement it locally so we don't depend on TRL for this class.
+class DataCollatorForCompletionOnlyLM:
+    """
+    Masks every token that comes before (and including) the response template so
+    that cross-entropy loss is computed only on the assistant's JSON output.
+    """
+
+    def __init__(self, response_template, tokenizer, mlm=False, ignore_index=-100):
+        self.tokenizer = tokenizer
+        self.ignore_index = ignore_index
+        self.response_template_ids = (
+            tokenizer.encode(response_template, add_special_tokens=False)
+            if isinstance(response_template, str)
+            else list(response_template)
+        )
+
+    def __call__(self, features):
+        batch = self.tokenizer.pad(features, return_tensors="pt")
+        labels = batch["input_ids"].clone()
+        tlen = len(self.response_template_ids)
+
+        for i in range(len(labels)):
+            seq = labels[i].tolist()
+            mask_until = len(seq)  # default: mask everything if template not found
+            for j in range(len(seq) - tlen, -1, -1):
+                if seq[j : j + tlen] == self.response_template_ids:
+                    mask_until = j + tlen  # keep tokens AFTER the template
+                    break
+            labels[i, :mask_until] = self.ignore_index
+
+        labels[batch["attention_mask"] == 0] = self.ignore_index
+        batch["labels"] = labels
+        return batch
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 ROOT       = Path(__file__).parent.parent
@@ -87,6 +123,7 @@ def main():
     print(f"Val file:     {VAL_FILE}")
     print(f"Output dir:   {output_dir}")
     print(f"PyTorch:      {torch.__version__}")
+    print(f"TRL:          {trl.__version__}")
     print(f"CUDA/ROCm:    {torch.cuda.is_available()}")
     if torch.cuda.is_available():
         print(f"GPU:          {torch.cuda.get_device_name(0)}")
@@ -153,6 +190,21 @@ def main():
         mlm=False,
     )
 
+    # ── Tokenize datasets ─────────────────────────────────────────────────────
+    # Pre-tokenize so we use stable transformers.Trainer instead of SFTTrainer,
+    # whose API changes every minor TRL release.
+    def tokenize(examples):
+        return tokenizer(
+            examples["text"],
+            truncation=True,
+            max_length=MAX_SEQ_LENGTH,
+            padding=False,   # the collator handles per-batch padding
+        )
+
+    print("Tokenizing datasets...")
+    train_dataset = train_dataset.map(tokenize, batched=True, remove_columns=["text"])
+    val_dataset   = val_dataset.map(tokenize,   batched=True, remove_columns=["text"])
+
     # ── Training arguments ────────────────────────────────────────────────────
     training_args = TrainingArguments(
         output_dir=str(output_dir),
@@ -182,17 +234,14 @@ def main():
         resume_from_checkpoint=args.resume_from_checkpoint,
     )
 
-    # ── SFTTrainer ────────────────────────────────────────────────────────────
-    trainer = SFTTrainer(
+    # ── Trainer ───────────────────────────────────────────────────────────────
+    trainer = Trainer(
         model=model,
         tokenizer=tokenizer,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         data_collator=collator,
-        dataset_text_field="text",     # our JSONL has {"text": "<ChatML string>"}
-        max_seq_length=MAX_SEQ_LENGTH,
         args=training_args,
-        packing=False,                 # don't pack multiple examples — each is independent
     )
 
     # ── Train ─────────────────────────────────────────────────────────────────

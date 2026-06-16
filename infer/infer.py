@@ -30,27 +30,60 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
 ROOT         = Path(__file__).parent.parent
 ADAPTER_PATH = ROOT / "train" / "output" / "final_adapter"
 BASE_MODEL   = "Qwen/Qwen3-14B"
+MEDDRA_LOOKUP = ROOT / "data" / "meddra_lookup.json"
 
 # ── Generation config ─────────────────────────────────────────────────────────
 MAX_NEW_TOKENS = 600
 TEMPERATURE    = 0.1    # low = deterministic structured output
 TOP_P          = 0.9
 
-SYSTEM_PROMPT = (
-    "You are an expert pharmacovigilance medical reviewer. "
-    "Analyze clinical safety narratives and provide structured assessments "
-    "according to ICH E2D guidelines and MedDRA coding standards."
-)
+SYSTEM_PROMPT = """You are an expert pharmacovigilance medical reviewer with deep knowledge of ICH E2D guidelines, MedDRA terminology, and WHO-UMC causality assessment.
+
+Given a clinical safety narrative, return ONLY a valid JSON object with exactly these fields:
+
+{
+  "seriousness": <"Serious" | "Non-serious">,
+  "seriousness_criteria": <array of zero or more from: "Death", "Hospitalization", "Life-threatening", "Disability/Incapacity", "Congenital Anomaly", "Medically Significant">,
+  "meddra_pt": <MedDRA Preferred Term name as a string>,
+  "meddra_soc": <MedDRA System Organ Class name as a string>,
+  "labelling_status": <"Expected" | "Unexpected">,
+  "labelling_evidence": <one sentence explaining why the event is listed or not listed in the drug label>,
+  "who_umc_category": <"Certain" | "Probable/Likely" | "Possible" | "Unlikely" | "Conditional/Unclassified" | "Unassessable">
+}
+
+Rules:
+- seriousness is "Serious" if the narrative mentions death, hospitalisation, life-threatening condition, permanent disability, congenital anomaly, or a medically significant event requiring intervention.
+- seriousness_criteria must be an empty array [] for Non-serious events.
+- meddra_pt and meddra_soc must use exact MedDRA dictionary names (title case).
+- labelling_status is "Expected" if the adverse event is listed in the drug's current prescribing information, otherwise "Unexpected".
+- who_umc_category follows WHO-UMC 2012 causality definitions.
+- Output JSON only. No explanation, no markdown, no code block."""
 
 INSTRUCTION = (
-    "Analyze the following clinical safety narrative. "
-    "Provide a structured medical review covering:\n"
-    "1. Seriousness assessment with specific ICH E2D criteria\n"
-    "2. MedDRA coding: Preferred Term (PT) and System Organ Class (SOC) with 8-digit codes\n"
-    "3. Labelling status: Expected or Unexpected, with brief evidence\n"
-    "4. Causality: WHO-UMC category\n"
-    "Return your assessment as a JSON object."
+    "Analyze the following clinical safety narrative and return a structured JSON assessment "
+    "covering seriousness, MedDRA coding, labelling status, and WHO-UMC causality."
 )
+
+
+# ── MedDRA lookup ─────────────────────────────────────────────────────────────
+_meddra_db: dict | None = None
+
+
+def _ensure_meddra():
+    global _meddra_db
+    if _meddra_db is None:
+        with open(MEDDRA_LOOKUP) as f:
+            _meddra_db = json.load(f)
+
+
+def lookup_meddra(pt_name: str) -> dict:
+    _ensure_meddra()
+    entry = _meddra_db.get(pt_name.lower(), {})
+    return {
+        "pt_code":  entry.get("meddra_pt_code"),
+        "soc_name": entry.get("meddra_soc"),
+        "soc_code": entry.get("meddra_soc_code"),
+    }
 
 
 def load_model(base_model: str = BASE_MODEL, adapter_path: Path = ADAPTER_PATH):
@@ -84,18 +117,48 @@ def load_model(base_model: str = BASE_MODEL, adapter_path: Path = ADAPTER_PATH):
     return model, tokenizer
 
 
-def build_prompt(narrative: str) -> str:
-    """Build the ChatML prompt for a clinical narrative."""
-    return (
-        f"<|im_start|>system\n{SYSTEM_PROMPT}<|im_end|>\n"
-        f"<|im_start|>user\n{INSTRUCTION}\n\nNarrative:\n{narrative}<|im_end|>\n"
-        f"<|im_start|>assistant\n"
+def build_prompt(narrative: str, tokenizer) -> str:
+    """Build prompt using apply_chat_template with thinking disabled."""
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user",   "content": f"{INSTRUCTION}\n\nNarrative: {narrative.strip()}\n\nOutput:"},
+    ]
+    return tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True,
+        enable_thinking=False,
     )
+
+
+def _extract_json(text: str) -> dict | None:
+    import re
+    fence = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+    if fence:
+        try:
+            return json.loads(fence.group(1))
+        except json.JSONDecodeError:
+            pass
+    start = text.find("{")
+    if start == -1:
+        return None
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                try:
+                    return json.loads(text[start : i + 1])
+                except json.JSONDecodeError:
+                    return None
+    return None
 
 
 def analyze(narrative: str, model, tokenizer) -> dict:
     """Run inference and return parsed JSON output."""
-    prompt = build_prompt(narrative.strip())
+    prompt = build_prompt(narrative.strip(), tokenizer)
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
 
     t0 = time.time()
@@ -115,23 +178,21 @@ def analyze(narrative: str, model, tokenizer) -> dict:
     new_tokens = output_ids[0][inputs.input_ids.shape[1]:]
     raw_text = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
 
-    # Remove trailing <|im_end|> if present
+    # Strip thinking blocks and extract JSON robustly
+    import re
+    raw_text = re.sub(r"<think>.*?</think>", "", raw_text, flags=re.DOTALL).strip()
     raw_text = raw_text.replace("<|im_end|>", "").strip()
 
-    # Parse JSON
-    try:
-        result = json.loads(raw_text)
-        result["_meta"] = {
-            "inference_time_s": round(elapsed, 2),
-            "raw_tokens": len(new_tokens),
-        }
+    result = _extract_json(raw_text)
+    if result is not None:
+        codes = lookup_meddra(result.get("meddra_pt", ""))
+        result["meddra_pt_code"]  = codes["pt_code"]
+        result["meddra_soc_code"] = codes["soc_code"]
+        if codes["soc_name"]:
+            result["meddra_soc"] = codes["soc_name"]
+        result["_meta"] = {"inference_time_s": round(elapsed, 2), "raw_tokens": len(new_tokens)}
         return result
-    except json.JSONDecodeError:
-        return {
-            "error": "JSON parse failed",
-            "raw_output": raw_text,
-            "_meta": {"inference_time_s": round(elapsed, 2)},
-        }
+    return {"error": "JSON parse failed", "raw_output": raw_text, "_meta": {"inference_time_s": round(elapsed, 2)}}
 
 
 def pretty_print(result: dict):
