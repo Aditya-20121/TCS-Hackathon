@@ -597,16 +597,17 @@ bash run_eval.sh
 
 Results are saved to `data/eval_results/` as `base.txt`, `finetuned.txt`, and `comparison_summary.txt`.
 
-**Fine-tuned model results (50 records):**
+**Evaluation results:**
 
-| Metric | Base Model | Fine-Tuned |
-|--------|-----------|------------|
-| JSON parse rate | — | 100.0% |
-| Seriousness | — | 94.0% |
-| MedDRA PT | — | 94.0% |
-| MedDRA SOC | — | 98.0% |
-| Labelling status | — | 92.0% |
-| **All fields correct** | — | **80.0%** |
+| Metric | Base Model | Fine-Tuned | Delta |
+|--------|-----------|------------|-------|
+| Records evaluated | 999 | 50 | — |
+| JSON parse rate | 100.0% | 100.0% | — |
+| Seriousness | 80.3% | 94.0% | +13.7pp |
+| MedDRA PT | 56.0% | 94.0% | +38.0pp |
+| MedDRA SOC | 41.1% | 98.0% | +56.9pp |
+| Labelling status | 67.6% | 92.0% | +24.4pp |
+| **All fields correct** | **16.6%** | **80.0%** | **+63.4pp** |
 
 ---
 
