@@ -112,7 +112,31 @@ Passing records are formatted into Qwen3's ChatML template with `DataCollatorFor
 
 Qwen3-14B is fine-tuned with LoRA adapters injected into all 7 linear layers (q, k, v, o projections in attention; gate, up, down projections in the SwiGLU MLP). Rank is set to 64 with alpha 128 (effective scaling factor 2.0). This trains approximately 160M parameters out of 14.8B total (~1.1%).
 
-Training uses TRL's `SFTTrainer` with cosine LR scheduling, 5% linear warmup, effective batch size 32 (per-device batch 2, gradient accumulation 16), and a 2048-token maximum sequence length. Three epochs over the full dataset. BF16 precision throughout.
+Training uses TRL's `Trainer` with cosine LR scheduling, 5% linear warmup, effective batch size 32 (per-device batch 2, gradient accumulation 16), and a 2048-token maximum sequence length. Three epochs over the full dataset. BF16 precision throughout.
+
+#### Hyperparameter Rationale
+
+**LoRA**
+
+| Parameter | Value | Reasoning |
+| --- | --- | --- |
+| `LORA_R` | 64 | Four tasks simultaneously (seriousness, MedDRA, labelling, WHO-UMC). MedDRA coding requires learning ~23,000 exact PT names — higher rank gives capacity for this. r=16 or r=32 underfits multi-task clinical JSON. |
+| `LORA_ALPHA` | 128 (scaling = 2.0) | Standard convention: alpha = 2×r. The scaling factor controls how much LoRA updates shift the output. 2.0 is aggressive enough to learn task behaviour without destabilizing pretrained weights. |
+| `LORA_DROPOUT` | 0.05 | ~8,500 synthetic training examples — mild overfitting risk. 0.05 adds enough stochasticity without impeding convergence. Higher (0.1+) is warranted only for very small datasets (<1,000 examples). |
+| Target modules | All 7 linear layers | Original LoRA adapted only Q/V attention projections. MedDRA coding is knowledge retrieval — MLP layers store factual knowledge in transformers. Adapting only attention layers misses this and underfits the coding task. |
+
+**Training**
+
+| Parameter | Value | Reasoning |
+| --- | --- | --- |
+| `NUM_EPOCHS` | 3 | 1 epoch underfits; 5+ risks overfitting on synthetic teacher data. ~265 steps/epoch × 3 = ~795 gradient steps, the typical convergence range for instruction tuning at this scale. |
+| `PER_DEVICE_BATCH_SIZE` | 2 | Qwen3-14B BF16 occupies ~28 GB. At seq_len=2048, batch=2 keeps total VRAM under 40 GB. Leaves ample headroom on the MI300X. |
+| `GRADIENT_ACCUMULATION` | 16 (effective batch = 32) | Effective batch size of 32 is the established sweet spot for instruction fine-tuning. Too small (8–16): noisy gradients. Too large (64+): sharp minima, worse generalization. |
+| `LEARNING_RATE` | 2e-4 | Full fine-tuning uses 1e-5–5e-5 (all weights update). LoRA trains <2% of parameters and needs a higher LR to make meaningful updates within a limited number of steps. 2e-4 is the standard LoRA default. |
+| `LR_SCHEDULER` | cosine | Large updates early (exploration), fine-grained refinement late as LR decays to zero. Linear decay typically underperforms; constant LR risks overshooting in late training. |
+| `WARMUP_RATIO` | 0.05 (~40 steps) | LoRA B matrices initialize to zero, A to random. Without warmup, the first steps see large random gradients that can destabilize the pretrained weights. 5% is the standard default. |
+| `MAX_SEQ_LENGTH` | 2048 | Most examples fit within 1,024 tokens; 2048 covers all longer narratives. Training at Qwen3's full 32K context would increase VRAM quadratically (attention is O(n²)). |
+| `MAX_GRAD_NORM` | 1.0 | Clips exploding gradients early in training when LoRA weights are near-zero and gradient estimates are noisy. 1.0 is the universal default across GPT, LLaMA, and essentially all transformer training recipes. |
 
 ---
 
