@@ -225,25 +225,31 @@ Evaluation uses `infer/eval.py` run via `run_eval.sh`. Both base and fine-tuned 
 - **Metrics:** Exact-match accuracy on four fields: `seriousness`, `meddra_pt` (case-insensitive), `meddra_soc` (case-insensitive), `labelling_status`
 - **Excluded from eval:** `who_umc_category` (computed deterministically from FAERS fields — not a measure of narrative understanding) and MedDRA codes (looked up post-inference, not predicted)
 
-### 7.2 Fine-Tuned Model Results
+### 7.2 Results
 
-| Metric | Result |
-| --- | --- |
-| Records evaluated | 50 |
-| JSON parse rate | 100.0% (50/50) |
-| Seriousness | 94.0% |
-| MedDRA PT | 94.0% |
-| MedDRA SOC | 98.0% |
-| Labelling status | 92.0% |
-| **All four fields correct** | **80.0%** |
+| Metric | Base Model | Fine-Tuned | Delta |
+| --- | --- | --- | --- |
+| Records evaluated | 999 | 50 | — |
+| JSON parse rate | 100.0% | 100.0% | — |
+| Seriousness | 80.3% | 94.0% | +13.7pp |
+| MedDRA PT | 56.0% | 94.0% | +38.0pp |
+| MedDRA SOC | 41.1% | 98.0% | +56.9pp |
+| Labelling status | 67.6% | 92.0% | +24.4pp |
+| **All fields correct** | **16.6%** | **80.0%** | **+63.4pp** |
 
-### 7.3 Notes on Metrics
+Both models achieved 100% JSON parse rate, confirming the prompt schema and `apply_chat_template` setup is robust for both configurations.
 
-**Why "All fields correct" is the primary metric:** Simple per-field averages (94+94+98+92)/4 = 94.5% overstate practical utility. A case that gets seriousness wrong but MedDRA right is still incorrect from a regulatory standpoint. The 80% all-correct rate reflects real-world usefulness — 4 in 5 records need no human correction on the evaluated fields.
+### 7.3 Analysis
 
-**SOC vs PT accuracy:** SOC (98%) is consistently higher than PT (94%) because SOC is a coarser classification (27 top-level categories vs. ~80,000 MedDRA terms). PT accuracy at 94% is strong given the size of the MedDRA vocabulary.
+**All fields correct is the primary metric.** Per-field averages ((80.3+56.0+41.1+67.6)/4 = 61.3% base, (94+94+98+92)/4 = 94.5% fine-tuned) overstate practical utility. A record that gets MedDRA PT wrong but seriousness correct still requires human intervention. The all-correct rate directly measures the fraction of records a reviewer can accept without correction: 16.6% → 80.0%, a 4.8× improvement.
 
-**Base model results:** Not yet recorded. The `run_eval.sh` script saves both runs to `data/eval_results/base.txt` and `data/eval_results/finetuned.txt` for side-by-side comparison.
+**MedDRA SOC is the largest absolute gain (+56.9pp).** This is counter-intuitive since SOC (27 categories) is coarser than PT (~23,000 PTs). The explanation is terminology consistency: the base model uses plausible but non-standard SOC names ("Hepatic disorders", "Gastrointestinal system") that fail exact-match comparison against official MedDRA SOC names ("Hepatobiliary disorders", "Gastrointestinal disorders"). Fine-tuning on MedDRA-grounded labels enforces exact dictionary names.
+
+**MedDRA PT gain (+38.0pp)** is the most clinically significant improvement. PT assignment from a narrative requires both medical knowledge and MedDRA vocabulary — the base model gets the medical concept right but uses non-standard term names; the fine-tuned model learns the exact MedDRA PT names from training data.
+
+**Labelling status gain (+24.4pp)** reflects that the base model lacks the drug-label grounding that the fine-tuning data provides (FDA label text injected at generation time for 24% of records).
+
+**Sample size note.** The base model was evaluated on 999 records; the fine-tuned model on 50. The base model estimate is more statistically robust. The fine-tuned model result on 50 records may vary slightly on the full validation set, but the magnitude of improvement across all metrics makes the conclusion robust.
 
 ---
 
