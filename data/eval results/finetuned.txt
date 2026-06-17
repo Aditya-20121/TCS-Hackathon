@@ -1,0 +1,15 @@
+
+============================================================
+EVALUATION RESULTS — Fine-tuned
+============================================================
+  Records evaluated  : 999
+  Time               : 9213.9s  (0.1 rec/s)
+  JSON parse rate    : 100.0%  (999/999)
+
+  Field accuracy (on 999 parsed records):
+    Seriousness       : 94.8%
+    MedDRA PT         : 92.2%
+    MedDRA SOC        : 96.7%
+    Labelling status  : 91.5%
+    All fields correct: 79.3%
+============================================================

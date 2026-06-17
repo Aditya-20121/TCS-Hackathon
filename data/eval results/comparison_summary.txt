@@ -1,0 +1,43 @@
+============================================================
+  COMPARISON SUMMARY — Medical Review Assistant Evaluation
+  Records per run : 999
+  Val file        : /workspace/shared/TCS-Hackathon/data/val_chatml.jsonl
+============================================================
+
+── Base model ───────────────────────────────────────────────
+
+============================================================
+EVALUATION RESULTS — Base model
+============================================================
+  Records evaluated  : 999
+  Time               : 3346.7s  (0.3 rec/s)
+  JSON parse rate    : 100.0%  (999/999)
+
+  Field accuracy (on 999 parsed records):
+    Seriousness       : 80.3%
+    MedDRA PT         : 56.0%
+    MedDRA SOC        : 41.1%
+    Labelling status  : 67.6%
+    All fields correct: 16.6%
+============================================================
+
+── Fine-tuned ───────────────────────────────────────────────
+
+============================================================
+EVALUATION RESULTS — Fine-tuned
+============================================================
+  Records evaluated  : 999
+  Time               : 9213.9s  (0.1 rec/s)
+  JSON parse rate    : 100.0%  (999/999)
+
+  Field accuracy (on 999 parsed records):
+    Seriousness       : 94.8%
+    MedDRA PT         : 92.2%
+    MedDRA SOC        : 96.7%
+    Labelling status  : 91.5%
+    All fields correct: 79.3%
+============================================================
+
+============================================================
+  Files saved to: /workspace/shared/TCS-Hackathon/data/eval_results/
+============================================================

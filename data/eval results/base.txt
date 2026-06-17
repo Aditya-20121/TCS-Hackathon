@@ -1,0 +1,15 @@
+
+============================================================
+EVALUATION RESULTS — Base model
+============================================================
+  Records evaluated  : 999
+  Time               : 3346.7s  (0.3 rec/s)
+  JSON parse rate    : 100.0%  (999/999)
+
+  Field accuracy (on 999 parsed records):
+    Seriousness       : 80.3%
+    MedDRA PT         : 56.0%
+    MedDRA SOC        : 41.1%
+    Labelling status  : 67.6%
+    All fields correct: 16.6%
+============================================================

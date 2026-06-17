@@ -1,0 +1,453 @@
+############################################################
+  Medical Review Assistant — Evaluation (999 records)
+  2 configurations: base model vs fine-tuned
+############################################################
+
+[1/2] Base model
+------------------------------------------------------------
+Eval file:  /workspace/shared/TCS-Hackathon/data/val_chatml.jsonl
+Records:    999
+Mode:       Base model
+
+Loading tokenizer + model...
+Loading checkpoint shards: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 8/8 [00:11<00:00,  1.42s/it]
+Model ready — Base model
+
+The following generation flags are not valid and may be ignored: ['top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+
+───────────────────────────────────────────────────────
+Sample 1 — narrative (truncated):
+  A 77-year-old male patient was treated with KEPPRA at an unknown dose for an unspecified indication. Approximately two weeks after initiating therapy, he developed symptoms consistent with purple glov...
+Model output:
+{
+  "seriousness": "Non-serious",
+  "seriousness_criteria": [],
+  "meddra_pt": "Purple Glove Syndrome",
+  "meddra_soc": "Skin and Subcutaneous Tissue Disorders",
+  "labelling_status": "Unexpected",
+  "labelling_evidence": "Purple Glove Syndrome is not listed in the current prescribing information for KEPPRA.",
+  "who_umc_category": "Possible"
+}
+───────────────────────────────────────────────────────
+
+
+───────────────────────────────────────────────────────
+Sample 2 — narrative (truncated):
+  A 57-year-old male patient receiving ropivacaine as part of muscle relaxant therapy developed lethargy after two weeks of treatment. The onset of lethargy was temporally associated with ongoing therap...
+Model output:
+{
+  "seriousness": "Serious",
+  "seriousness_criteria": ["Medically Significant"],
+  "meddra_pt": "Lethargy",
+  "meddra_soc": "Nervous System Disorders",
+  "labelling_status": "Unexpected",
+  "labelling_evidence": "Lethargy is not listed as a known adverse reaction in the current prescribing information for ropivacaine.",
+  "who_umc_category": "Possible"
+}
+───────────────────────────────────────────────────────
+
+
+───────────────────────────────────────────────────────
+Sample 3 — narrative (truncated):
+  A female patient with convulsions was treated with DEPAKOTE. Dizziness occurred after approximately two weeks of therapy. The drug was continued without dose adjustment, and the adverse event resolved...
+Model output:
+{
+  "seriousness": "Non-serious",
+  "seriousness_criteria": [],
+  "meddra_pt": "Dizziness",
+  "meddra_soc": "Ear and labyrinth disorders",
+  "labelling_status": "Expected",
+  "labelling_evidence": "Dizziness is a known adverse reaction listed in the prescribing information for DEPAKOTE.",
+  "who_umc_category": "Probable/Likely"
+}
+───────────────────────────────────────────────────────
+
+
+───────────────────────────────────────────────────────
+Sample 4 — narrative (truncated):
+  A 59-year-old female with status epilepticus was treated with topiramate 100 mg twice daily. Within six weeks of initiation, she experienced a significant unintentional weight loss of 10 kg. The tempo...
+Model output:
+{
+  "seriousness": "Non-serious",
+  "seriousness_criteria": [],
+  "meddra_pt": "Weight Decrease",
+  "meddra_soc": "Generalised Disorders And Administration Site Conditions",
+  "labelling_status": "Unexpected",
+  "labelling_evidence": "Weight decrease is not listed as a common or expected adverse event in the current prescribing information for topiramate.",
+  "who_umc_category": "Possible"
+}
+───────────────────────────────────────────────────────
+
+
+───────────────────────────────────────────────────────
+Sample 5 — narrative (truncated):
+  A 65-year-old female was treated with LETAIRIS 10 mg once daily for an unknown indication. After approximately six weeks of therapy, she experienced a significant decrease in body weight. The seriousn...
+Model output:
+{
+  "seriousness": "Serious",
+  "seriousness_criteria": ["Medically Significant"],
+  "meddra_pt": "Weight Decrease",
+  "meddra_soc": "Generalised Disorders And Administration Site Conditions",
+  "labelling_status": "Unexpected",
+  "labelling_evidence": "Weight decrease is not listed as a known adverse reaction in the current prescribing information for LETAIRIS.",
+  "who_umc_category": "Possible"
+}
+───────────────────────────────────────────────────────
+
+
+───────────────────────────────────────────────────────
+Sample 6 — narrative (truncated):
+  A 46-year-old male patient with schizophrenia was treated with clozapine. After approximately six weeks of therapy, he was found to have an elevated neutrophil count on routine blood testing. The temp...
+Model output:
+{
+  "seriousness": "Non-serious",
+  "seriousness_criteria": [],
+  "meddra_pt": "Leukocytosis",
+  "meddra_soc": "Blood and Lymphatic System Disorders",
+  "labelling_status": "Expected",
+  "labelling_evidence": "Leukocytosis is a known adverse reaction associated with clozapine and is listed in the drug's prescribing information.",
+  "who_umc_category": "Possible"
+}
+───────────────────────────────────────────────────────
+
+
+───────────────────────────────────────────────────────
+Sample 7 — narrative (truncated):
+  A patient with myelofibrosis was treated with JAKAFI 20 mg once daily. Approximately six weeks after initiation of therapy, the patient was found to have an aneurysm. The relationship between JAKAFI a...
+Model output:
+{
+  "seriousness": "Serious",
+  "seriousness_criteria": ["Life-threatening"],
+  "meddra_pt": "Aneurysm",
+  "meddra_soc": "Cardiac Disorders",
+  "labelling_status": "Unexpected",
+  "labelling_evidence": "The event 'Aneurysm' is not listed in the current prescribing information for JAKAFI.",
+  "who_umc_category": "Unlikely"
+}
+───────────────────────────────────────────────────────
+
+
+───────────────────────────────────────────────────────
+Sample 8 — narrative (truncated):
+  A 59-year-old female patient receiving PEGASYS for antiviral treatment developed pancytopenia after six weeks of therapy. Laboratory evaluation revealed decreased levels of all three cell lineages. Th...
+Model output:
+{
+  "seriousness": "Serious",
+  "seriousness_criteria": ["Medically Significant"],
+  "meddra_pt": "Pancytopenia",
+  "meddra_soc": "Blood and Lymphatic System Disorders",
+  "labelling_status": "Unexpected",
+  "labelling_evidence": "Pancytopenia is not listed in the current prescribing information for PEGASYS as a known adverse event.",
+  "who_umc_category": "Probable/Likely"
+}
+───────────────────────────────────────────────────────
+
+
+───────────────────────────────────────────────────────
+Sample 9 — narrative (truncated):
+  A 77-year-old female underwent a skin cosmetic procedure and was treated with KERI ORIGINAL UNK. Approximately two weeks following initiation of treatment, she developed ocular hyperaemia. The tempora...
+Model output:
+{
+  "seriousness": "Non-serious",
+  "seriousness_criteria": [],
+  "meddra_pt": "Ocular Hyperaemia",
+  "meddra_soc": "Eye Disorders",
+  "labelling_status": "Unexpected",
+  "labelling_evidence": "Ocular hyperaemia is not listed in the current prescribing information for KERI ORIGINAL UNK.",
+  "who_umc_category": "Probable/Likely"
+}
+───────────────────────────────────────────────────────
+
+
+───────────────────────────────────────────────────────
+Sample 10 — narrative (truncated):
+  A 72-year-old male patient received NEULASTA 6 mg every three weeks for prophylaxis. During the treatment period, an unspecified serious adverse event prompting investigation was reported. The tempora...
+Model output:
+{
+  "seriousness": "Serious",
+  "seriousness_criteria": ["Unspecified serious adverse event"],
+  "meddra_pt": "Unspecified Serious Adverse Event",
+  "meddra_soc": "Unclassified",
+  "labelling_status": "Unexpected",
+  "labelling_evidence": "The event 'Unspecified Serious Adverse Event' is not listed in the current prescribing information for NEULASTA.",
+  "who_umc_category": "Unlikely"
+}
+───────────────────────────────────────────────────────
+
+[990/999]  seriousness=797/990  labelling=668/990  meddra_pt=555/990  (0.3 rec/s)
+
+============================================================
+EVALUATION RESULTS — Base model
+============================================================
+  Records evaluated  : 999
+  Time               : 3346.7s  (0.3 rec/s)
+  JSON parse rate    : 100.0%  (999/999)
+
+  Field accuracy (on 999 parsed records):
+    Seriousness       : 80.3%
+    MedDRA PT         : 56.0%
+    MedDRA SOC        : 41.1%
+    Labelling status  : 67.6%
+    All fields correct: 16.6%
+============================================================
+
+Summary saved to: /workspace/shared/TCS-Hackathon/data/eval_results/base.txt
+Per-record results saved to: /workspace/shared/TCS-Hackathon/data/eval_results/base.jsonl
+
+[2/2] Fine-tuned
+------------------------------------------------------------
+Eval file:  /workspace/shared/TCS-Hackathon/data/val_chatml.jsonl
+Records:    999
+Mode:       Fine-tuned
+Adapter:    /workspace/shared/TCS-Hackathon/train/output/final_adapter
+
+Loading tokenizer + model...
+Loading checkpoint shards: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 8/8 [00:12<00:00,  1.55s/it]
+Model ready — Fine-tuned
+
+The following generation flags are not valid and may be ignored: ['top_k']. Set `TRANSFORMERS_VERBOSITY=info` for more details.
+
+───────────────────────────────────────────────────────
+Sample 1 — narrative (truncated):
+  A 77-year-old male patient was treated with KEPPRA at an unknown dose for an unspecified indication. Approximately two weeks after initiating therapy, he developed symptoms consistent with purple glov...
+Model output:
+{
+  "seriousness": "Serious",
+  "seriousness_criteria": [
+    "Medically Significant"
+  ],
+  "meddra_pt": "Purple glove syndrome",
+  "meddra_soc": "Skin and subcutaneous tissue disorders",
+  "labelling_status": "Unexpected",
+  "labelling_evidence": "Purple glove syndrome is not a known adverse reaction associated with levetiracetam (KEPPRA) or its drug class, and is not typically listed in the prescribing information for this drug.",
+  "who_umc_category": "Unassessable"
+}
+───────────────────────────────────────────────────────
+
+
+───────────────────────────────────────────────────────
+Sample 2 — narrative (truncated):
+  A 57-year-old male patient receiving ropivacaine as part of muscle relaxant therapy developed lethargy after two weeks of treatment. The onset of lethargy was temporally associated with ongoing therap...
+Model output:
+{
+  "seriousness": "Serious",
+  "seriousness_criteria": [
+    "Medically Significant"
+  ],
+  "meddra_pt": "Lethargy",
+  "meddra_soc": "Nervous system disorders",
+  "labelling_status": "Unexpected",
+  "labelling_evidence": "Lethargy is not a commonly recognized or documented adverse reaction associated with ropivacaine or local anesthetics in general, based on its known pharmacological profile and prescribing information.",
+  "who_umc_category": "Unassessable"
+}
+───────────────────────────────────────────────────────
+
+
+───────────────────────────────────────────────────────
+Sample 3 — narrative (truncated):
+  A female patient with convulsions was treated with DEPAKOTE. Dizziness occurred after approximately two weeks of therapy. The drug was continued without dose adjustment, and the adverse event resolved...
+Model output:
+{
+  "seriousness": "Non-serious",
+  "seriousness_criteria": [],
+  "meddra_pt": "Dizziness",
+  "meddra_soc": "Nervous system disorders",
+  "labelling_status": "Expected",
+  "labelling_evidence": "Dizziness is listed in the adverse reactions section as one of the most common adverse reactions reported (\u226515% for any indication).",
+  "who_umc_category": "Possible"
+}
+───────────────────────────────────────────────────────
+
+
+───────────────────────────────────────────────────────
+Sample 4 — narrative (truncated):
+  A 59-year-old female with status epilepticus was treated with topiramate 100 mg twice daily. Within six weeks of initiation, she experienced a significant unintentional weight loss of 10 kg. The tempo...
+Model output:
+{
+  "seriousness": "Serious",
+  "seriousness_criteria": [
+    "Medically Significant"
+  ],
+  "meddra_pt": "Weight decreased",
+  "meddra_soc": "Investigations",
+  "labelling_status": "Expected",
+  "labelling_evidence": "Weight decreased is a known adverse reaction associated with topiramate, likely due to its appetite-suppressing effects and metabolic influences.",
+  "who_umc_category": "Probable/Likely"
+}
+───────────────────────────────────────────────────────
+
+
+───────────────────────────────────────────────────────
+Sample 5 — narrative (truncated):
+  A 65-year-old female was treated with LETAIRIS 10 mg once daily for an unknown indication. After approximately six weeks of therapy, she experienced a significant decrease in body weight. The seriousn...
+Model output:
+{
+  "seriousness": "Serious",
+  "seriousness_criteria": [
+    "Medically Significant"
+  ],
+  "meddra_pt": "Weight decreased",
+  "meddra_soc": "Investigations",
+  "labelling_status": "Unexpected",
+  "labelling_evidence": "Weight decreased is not listed in the Adverse Reactions section of the FDA prescribing information for LETAIRIS.",
+  "who_umc_category": "Unassessable"
+}
+───────────────────────────────────────────────────────
+
+
+───────────────────────────────────────────────────────
+Sample 6 — narrative (truncated):
+  A 46-year-old male patient with schizophrenia was treated with clozapine. After approximately six weeks of therapy, he was found to have an elevated neutrophil count on routine blood testing. The temp...
+Model output:
+{
+  "seriousness": "Non-serious",
+  "seriousness_criteria": [],
+  "meddra_pt": "Neutrophil count increased",
+  "meddra_soc": "Investigations",
+  "labelling_status": "Unexpected",
+  "labelling_evidence": "The adverse reactions section of the label does not mention 'Neutrophil count increased' or any closely related terms.",
+  "who_umc_category": "Unassessable"
+}
+───────────────────────────────────────────────────────
+
+
+───────────────────────────────────────────────────────
+Sample 7 — narrative (truncated):
+  A patient with myelofibrosis was treated with JAKAFI 20 mg once daily. Approximately six weeks after initiation of therapy, the patient was found to have an aneurysm. The relationship between JAKAFI a...
+Model output:
+{
+  "seriousness": "Serious",
+  "seriousness_criteria": [
+    "Medically Significant"
+  ],
+  "meddra_pt": "Aneurysm",
+  "meddra_soc": "Vascular disorders",
+  "labelling_status": "Unexpected",
+  "labelling_evidence": "Aneurysm is not a known adverse reaction typically associated with JAKAFI or JAK inhibitors in the treatment of myelofibrosis.",
+  "who_umc_category": "Unassessable"
+}
+───────────────────────────────────────────────────────
+
+
+───────────────────────────────────────────────────────
+Sample 8 — narrative (truncated):
+  A 59-year-old female patient receiving PEGASYS for antiviral treatment developed pancytopenia after six weeks of therapy. Laboratory evaluation revealed decreased levels of all three cell lineages. Th...
+Model output:
+{
+  "seriousness": "Serious",
+  "seriousness_criteria": [
+    "Hospitalization",
+    "Medically Significant"
+  ],
+  "meddra_pt": "Pancytopenia",
+  "meddra_soc": "Blood and lymphatic system disorders",
+  "labelling_status": "Expected",
+  "labelling_evidence": "Pancytopenia is a known hematological adverse reaction associated with PEGASYS (peginterferon alfa-2a), typically listed in its prescribing information due to its mechanism of action involving immune modulation and potential myelosuppressive effects.",
+  "who_umc_category": "Probable/Likely"
+}
+───────────────────────────────────────────────────────
+
+
+───────────────────────────────────────────────────────
+Sample 9 — narrative (truncated):
+  A 77-year-old female underwent a skin cosmetic procedure and was treated with KERI ORIGINAL UNK. Approximately two weeks following initiation of treatment, she developed ocular hyperaemia. The tempora...
+Model output:
+{
+  "seriousness": "Serious",
+  "seriousness_criteria": [
+    "Hospitalization"
+  ],
+  "meddra_pt": "Ocular hyperaemia",
+  "meddra_soc": "Eye disorders",
+  "labelling_status": "Unexpected",
+  "labelling_evidence": "Ocular hyperaemia is not typically associated with KERI ORIGINAL or its drug class, as it is primarily a topical cosmetic agent and not known to have systemic or ocular adverse effects.",
+  "who_umc_category": "Probable/Likely"
+}
+───────────────────────────────────────────────────────
+
+
+───────────────────────────────────────────────────────
+Sample 10 — narrative (truncated):
+  A 72-year-old male patient received NEULASTA 6 mg every three weeks for prophylaxis. During the treatment period, an unspecified serious adverse event prompting investigation was reported. The tempora...
+Model output:
+{
+  "seriousness": "Serious",
+  "seriousness_criteria": [
+    "Medically Significant"
+  ],
+  "meddra_pt": "Investigation",
+  "meddra_soc": "Investigations",
+  "labelling_status": "Unexpected",
+  "labelling_evidence": "The term 'Investigation' is not a specific adverse reaction and is not typically listed in the prescribing information for NEULASTA.",
+  "who_umc_category": "Unassessable"
+}
+───────────────────────────────────────────────────────
+
+[990/999]  seriousness=939/990  labelling=905/990  meddra_pt=914/990  (0.1 rec/s)
+
+============================================================
+EVALUATION RESULTS — Fine-tuned
+============================================================
+  Records evaluated  : 999
+  Time               : 9213.9s  (0.1 rec/s)
+  JSON parse rate    : 100.0%  (999/999)
+
+  Field accuracy (on 999 parsed records):
+    Seriousness       : 94.8%
+    MedDRA PT         : 92.2%
+    MedDRA SOC        : 96.7%
+    Labelling status  : 91.5%
+    All fields correct: 79.3%
+============================================================
+
+Summary saved to: /workspace/shared/TCS-Hackathon/data/eval_results/finetuned.txt
+Per-record results saved to: /workspace/shared/TCS-Hackathon/data/eval_results/finetuned.jsonl
+
+############################################################
+  COMPARISON SUMMARY
+############################################################
+============================================================
+  COMPARISON SUMMARY — Medical Review Assistant Evaluation
+  Records per run : 999
+  Val file        : /workspace/shared/TCS-Hackathon/data/val_chatml.jsonl
+============================================================
+
+── Base model ───────────────────────────────────────────────
+
+============================================================
+EVALUATION RESULTS — Base model
+============================================================
+  Records evaluated  : 999
+  Time               : 3346.7s  (0.3 rec/s)
+  JSON parse rate    : 100.0%  (999/999)
+
+  Field accuracy (on 999 parsed records):
+    Seriousness       : 80.3%
+    MedDRA PT         : 56.0%
+    MedDRA SOC        : 41.1%
+    Labelling status  : 67.6%
+    All fields correct: 16.6%
+============================================================
+
+── Fine-tuned ───────────────────────────────────────────────
+
+============================================================
+EVALUATION RESULTS — Fine-tuned
+============================================================
+  Records evaluated  : 999
+  Time               : 9213.9s  (0.1 rec/s)
+  JSON parse rate    : 100.0%  (999/999)
+
+  Field accuracy (on 999 parsed records):
+    Seriousness       : 94.8%
+    MedDRA PT         : 92.2%
+    MedDRA SOC        : 96.7%
+    Labelling status  : 91.5%
+    All fields correct: 79.3%
+============================================================
+
+============================================================
+  Files saved to: /workspace/shared/TCS-Hackathon/data/eval_results/
+============================================================
+
+All done. Summary saved to: /workspace/shared/TCS-Hackathon/data/eval_results/comparison_summary.txt
