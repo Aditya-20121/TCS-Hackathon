@@ -7,6 +7,8 @@ A fine-tuned LLM (Qwen3-14B + LoRA) that assists pharmacovigilance reviewers wit
 3. **Labelling Status** — Determines if an event is Expected or Unexpected (grounded in FDA drug label text)
 4. **Causality Assessment** — WHO-UMC category (computed deterministically from FAERS structured fields)
 
+![Medical Review Assistant Demo](<data/Medical Reviewer Demo.png>)
+
 ---
 
 ## Table of Contents
